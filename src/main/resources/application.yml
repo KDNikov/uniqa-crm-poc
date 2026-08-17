@@ -1,0 +1,40 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: uniqa-crm-poc
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/crm_poc
+    username: crm_user
+    password: crm_pass
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+# Embedded GreenMail test mailbox (POC stand-in for real UNIQA inboxes), or
+# a real IMAP mailbox once you have access - nothing downstream of
+# EmailSource changes either way.
+email:
+  source: greenmail   # greenmail | imap
+  greenmail:
+    enabled: true
+    imap-port: 3143
+    smtp-port: 3025
+    test-account: claims-inbox@uniqa-poc.local
+    test-password: test1234
+  imap:
+    host: imap-mail.outlook.com
+    port: 993
+    username: ${IMAP_USERNAME}
+    password: ${IMAP_PASSWORD}
+  poll:
+    fixed-delay-ms: 15000   # how often the app checks the inbox

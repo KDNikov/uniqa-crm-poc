@@ -1,0 +1,16 @@
+# Zero-install fallback: file-based embedded H2 instead of Postgres, for demoing
+# on a machine with no Docker/Postgres access. Activate with:
+#   mvn -o spring-boot:run -Dspring-boot.run.profiles=h2
+# Data persists in ./data/crm_poc.mv.db next to wherever the app is launched from.
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/crm_poc;AUTO_SERVER=TRUE
+    username: sa
+    password: ''
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect

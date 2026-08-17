@@ -1,0 +1,101 @@
+:root {
+  --text: #334155;
+  --text-h: #0f172a;
+  --text-muted: #64748b;
+  --bg: #ffffff;
+  --page-bg: #f4f5f7;
+  --bg-alt: #f8fafc;
+  --border: #e2e8f0;
+  --accent: #4338ca;
+  --accent-hover: #372fa3;
+  --accent-bg: rgba(67, 56, 202, 0.08);
+  --danger: #dc2626;
+  --danger-bg: rgba(220, 38, 38, 0.08);
+  --success: #059669;
+  --sidebar-bg: #ffffff;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 8px 20px -6px rgba(15, 23, 42, 0.12), 0 2px 6px -2px rgba(15, 23, 42, 0.06);
+  --radius: 10px;
+  --radius-sm: 7px;
+
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  font-feature-settings: 'tnum' 1, 'cv11' 1;
+  color: var(--text);
+  background: var(--page-bg);
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* OS-level dark preference, unless the toggle below has pinned a theme explicitly. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --text: #cbd5e1;
+    --text-h: #f8fafc;
+    --text-muted: #94a3b8;
+    --bg: #1e293b;
+    --page-bg: #0f172a;
+    --bg-alt: #263449;
+    --border: #334155;
+    --accent: #818cf8;
+    --accent-hover: #6366f1;
+    --accent-bg: rgba(129, 140, 248, 0.18);
+    --danger: #f87171;
+    --danger-bg: rgba(248, 113, 113, 0.16);
+    --success: #34d399;
+    --sidebar-bg: #1e293b;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 8px 20px -6px rgba(0, 0, 0, 0.5), 0 2px 6px -2px rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
+  }
+}
+
+/* Explicit toggle - wins over both the OS preference and a light stamp. */
+:root[data-theme='dark'] {
+  --text: #cbd5e1;
+  --text-h: #f8fafc;
+  --text-muted: #94a3b8;
+  --bg: #1e293b;
+  --page-bg: #0f172a;
+  --bg-alt: #263449;
+  --border: #334155;
+  --accent: #818cf8;
+  --accent-hover: #6366f1;
+  --accent-bg: rgba(129, 140, 248, 0.18);
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.16);
+  --success: #34d399;
+  --sidebar-bg: #1e293b;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 20px -6px rgba(0, 0, 0, 0.5), 0 2px 6px -2px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--text);
+}
+
+h1,
+h2,
+h3 {
+  color: var(--text-h);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 12px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}

@@ -1,0 +1,20 @@
+# Maven
+target/
+
+# Local H2 database
+data/*.mv.db
+data/*.trace.db
+
+# IDE
+.idea/
+*.iml
+
+# Claude Code local settings (may contain command history with secrets)
+.claude/settings.local.json
+
+# OS
+.DS_Store
+
+# Env / secrets
+.env
+*.local
