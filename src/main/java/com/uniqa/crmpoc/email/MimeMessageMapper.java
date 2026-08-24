@@ -23,7 +23,7 @@ final class MimeMessageMapper {
     private MimeMessageMapper() {
     }
 
-    static RawEmail toRawEmail(Message message) throws Exception {
+    static RawEmail toRawEmail(Message message, String mailboxAddress) throws Exception {
         String from = addresses(message.getFrom()).stream().findFirst().orElse("unknown@unknown");
         List<String> to = addresses(message.getRecipients(Message.RecipientType.TO));
         List<String> cc = addresses(message.getRecipients(Message.RecipientType.CC));
@@ -34,7 +34,8 @@ final class MimeMessageMapper {
         collectParts(message.getContent(), text, attachments);
 
         return new RawEmail(
-                resolveMessageId(message),
+                resolveMessageId(message, mailboxAddress),
+                mailboxAddress,
                 from,
                 to,
                 cc,
@@ -54,9 +55,13 @@ final class MimeMessageMapper {
      * Prefers the Message-ID header. Real messages always have one, but as a
      * fallback we key off the message's IMAP UID (stable across sessions until
      * the message is expunged) rather than from+subject+sentDate, which can
-     * collide for distinct messages sharing a sender/subject/timestamp.
+     * collide for distinct messages sharing a sender/subject/timestamp. The UID
+     * fallback is also qualified by mailboxAddress: UIDs are only unique within
+     * a single mailbox, and with several mailboxes now polled, two different
+     * accounts can otherwise hand back the same "from+uid" pair for unrelated
+     * messages and trip the Email.messageId unique constraint.
      */
-    static String resolveMessageId(Message message) throws Exception {
+    static String resolveMessageId(Message message, String mailboxAddress) throws Exception {
         String header = firstHeader(message, "Message-ID");
         if (header != null) {
             return header;
@@ -65,7 +70,7 @@ final class MimeMessageMapper {
         long uid = message.getFolder() instanceof UIDFolder uidFolder
                 ? uidFolder.getUID(message)
                 : message.getMessageNumber();
-        return from + "-uid" + uid;
+        return mailboxAddress + ":" + from + "-uid" + uid;
     }
 
     private static List<String> addresses(Address[] addresses) {

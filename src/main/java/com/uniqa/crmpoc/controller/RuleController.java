@@ -18,11 +18,6 @@ import java.util.List;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-/**
- * Backs the rule-builder UI: business users create/edit/delete categorization
- * rules here. Every write rebuilds the Drools knowledge base so changes take
- * effect on the very next email processed - no redeploy needed.
- */
 @RestController
 @RequestMapping("/api/rules")
 public class RuleController {

@@ -56,7 +56,7 @@ public class ImapEmailSource implements EmailSource {
                 Message[] unseen = inbox.search(new jakarta.mail.search.FlagTerm(new Flags(Flags.Flag.SEEN), false));
                 for (Message message : unseen) {
                     try {
-                        result.add(MimeMessageMapper.toRawEmail(message));
+                        result.add(MimeMessageMapper.toRawEmail(message, username));
                     } catch (Exception e) {
                         log.error("Failed to parse a fetched message, leaving it unseen for retry", e);
                     }
@@ -84,7 +84,7 @@ public class ImapEmailSource implements EmailSource {
                 inbox.open(Folder.READ_WRITE);
                 for (Message message : inbox.getMessages()) {
                     try {
-                        if (pending.contains(MimeMessageMapper.resolveMessageId(message))) {
+                        if (pending.contains(MimeMessageMapper.resolveMessageId(message, username))) {
                             message.setFlag(Flags.Flag.SEEN, true);
                         }
                     } catch (Exception e) {

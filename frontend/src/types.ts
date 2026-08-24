@@ -54,6 +54,13 @@ export interface EmailAttachment {
   contentType: string | null;
 }
 
+export interface MailAccount {
+  id: number;
+  address: string;
+  displayName: string;
+  canSend: boolean;
+}
+
 export interface Email {
   id: number;
   messageId: string;
@@ -62,6 +69,7 @@ export interface Email {
   body: string;
   receivedAt: string;
   hasAttachment: boolean;
+  receivingAccount: string | null;
   toAddresses: string | null;
   ccAddresses: string | null;
   replyTo: string | null;
@@ -76,12 +84,16 @@ export interface Email {
   matchedRuleId: number | null;
   finalCategory: string;
   processed: boolean;
-  read: boolean;
   archived: boolean;
+  important: boolean;
+  spam: boolean;
+  spamScore: number | null;
+  spamSuggestionDismissed: boolean;
   createdAt: string;
 }
 
 export interface SendEmailRequest {
+  fromAddress: string;
   to: string[];
   cc: string[];
   subject: string;

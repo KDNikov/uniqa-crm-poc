@@ -70,3 +70,12 @@ export function NegativeSentimentBadge() {
     </span>
   );
 }
+
+export function SpamBadge() {
+  const fg = '#dc2626';
+  return (
+    <span className="badge" style={{ background: alphaBg(fg), color: fg }}>
+      ⚠ Spam
+    </span>
+  );
+}

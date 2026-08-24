@@ -10,6 +10,8 @@ import java.util.List;
  */
 public record RawEmail(
         String messageId,
+        /** Address of the mailbox this was fetched from - which of the N configured accounts received it. */
+        String mailboxAddress,
         String fromAddress,
         List<String> toAddresses,
         List<String> ccAddresses,

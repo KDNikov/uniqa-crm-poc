@@ -7,6 +7,7 @@ import java.util.List;
 
 /** What the CRM inbox view submits for Reply/Reply All/Forward. */
 public record SendEmailRequest(
+        @NotBlank String fromAddress,
         @NotEmpty List<String> to,
         List<String> cc,
         @NotBlank String subject,

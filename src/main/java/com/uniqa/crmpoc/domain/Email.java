@@ -42,6 +42,9 @@ public class Email {
     private boolean hasAttachment = false;
 
     // --- Metadata ---
+    /** Which of the configured MailAccount inboxes this was fetched from. */
+    private String receivingAccount;
+
     @Column(columnDefinition = "text")
     private String toAddresses;
 
@@ -81,12 +84,26 @@ public class Email {
     @Column(nullable = false)
     private boolean processed = false;
 
-    @Column(name = "is_read", nullable = false, columnDefinition = "boolean not null default false")
-    private boolean read = false;
-
     /** Soft-delete: archived emails are excluded from the active inbox views. */
     @Column(nullable = false, columnDefinition = "boolean not null default false")
     private boolean archived = false;
+
+    /** User-flagged as most urgent to handle. */
+    @Column(nullable = false, columnDefinition = "boolean not null default false")
+    private boolean important = false;
+
+    /** Confirmed spam - auto-set at ingestion above NlpCategorizationService.AUTO_SPAM_THRESHOLD,
+     *  or set by a human directly / by accepting the NLP suggestion below.
+     *  Spam emails are NOT archived/hidden: they stay visible in the inbox, just badged. */
+    @Column(nullable = false, columnDefinition = "boolean not null default false")
+    private boolean spam = false;
+
+    /** NLP-heuristic spam likelihood (0.0-1.0) computed at ingestion; a suggestion, not a verdict. */
+    private Double spamScore;
+
+    /** A human dismissed the "likely spam" suggestion, so it stops being surfaced. */
+    @Column(nullable = false, columnDefinition = "boolean not null default false")
+    private boolean spamSuggestionDismissed = false;
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();

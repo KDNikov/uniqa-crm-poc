@@ -32,12 +32,24 @@ import java.util.Set;
 @Slf4j
 public class NlpCategorizationService {
 
+    /** spamScore at/above this is auto-marked as spam; below it (down to 0.5) is only suggested for human review. */
+    public static final double AUTO_SPAM_THRESHOLD = 0.85;
+
     private DocumentCategorizerME categorizer;
 
     private static final Set<String> NEGATIVE_KEYWORDS = Set.of(
             "disappointed", "frustrated", "unacceptable", "angry", "furious",
             "worst", "terrible", "cancel", "cancelling", "complaint", "unhappy",
             "ignored", "wasted", "disconnected"
+    );
+
+    /** Common marketing/scam signal words - a POC stand-in for a real spam classifier. */
+    private static final Set<String> SPAM_KEYWORDS = Set.of(
+            "free", "winner", "you have won", "congratulations", "click here",
+            "act now", "limited time", "guarantee", "no cost", "risk free",
+            "lottery", "prize", "wire transfer", "bitcoin", "crypto", "viagra",
+            "million dollars", "cash prize", "unsubscribe", "act immediately",
+            "urgent action required", "verify your account", "claim your reward"
     );
 
     @PostConstruct
@@ -63,12 +75,36 @@ public class NlpCategorizationService {
         double confidence = outcomes[categorizer.getIndex(bestCategory)];
 
         boolean negative = containsNegativeSentiment(text);
+        double spamScore = computeSpamScore(subject, text);
 
-        return new NlpResult(bestCategory, confidence, negative);
+        return new NlpResult(bestCategory, confidence, negative, spamScore);
     }
 
     private boolean containsNegativeSentiment(String text) {
         String lower = text.toLowerCase();
         return NEGATIVE_KEYWORDS.stream().anyMatch(lower::contains);
+    }
+
+    /** Keyword hits plus a couple of shouty-marketing signals, normalized to 0.0-1.0. */
+    private double computeSpamScore(String subject, String text) {
+        String lower = text.toLowerCase();
+        long keywordHits = SPAM_KEYWORDS.stream().filter(lower::contains).count();
+
+        double score = Math.min(1.0, keywordHits * 0.25);
+
+        long exclamations = text.chars().filter(c -> c == '!').count();
+        if (exclamations >= 3) {
+            score = Math.min(1.0, score + 0.2);
+        }
+
+        String subj = subject == null ? "" : subject;
+        boolean shoutySubject = subj.length() >= 6
+                && subj.equals(subj.toUpperCase())
+                && !subj.equals(subj.toLowerCase());
+        if (shoutySubject) {
+            score = Math.min(1.0, score + 0.2);
+        }
+
+        return score;
     }
 }

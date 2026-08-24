@@ -1,4 +1,4 @@
-import type { Category, CategoryRequest, Email, Rule, RuleRequest, SendEmailRequest } from './types';
+import type { Category, CategoryRequest, Email, MailAccount, Rule, RuleRequest, SendEmailRequest } from './types';
 import { getDemoRole } from './demoRole';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -26,8 +26,15 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ category }),
     }),
-  setEmailRead: (id: number, read: boolean) =>
-    request<Email>(`/api/emails/${id}/read`, { method: 'PUT', body: JSON.stringify({ read }) }),
+  setEmailImportant: (id: number, important: boolean) =>
+    request<Email>(`/api/emails/${id}/important`, {
+      method: 'PUT',
+      body: JSON.stringify({ important }),
+    }),
+  setEmailSpam: (id: number, spam: boolean) =>
+    request<Email>(`/api/emails/${id}/spam`, { method: 'PUT', body: JSON.stringify({ spam }) }),
+  dismissSpamSuggestion: (id: number) =>
+    request<Email>(`/api/emails/${id}/spam-suggestion-dismiss`, { method: 'PUT' }),
   setEmailArchived: (id: number, archived: boolean) =>
     request<Email>(`/api/emails/${id}/archived`, {
       method: 'PUT',
@@ -42,6 +49,8 @@ export const api = {
   updateRule: (id: number, rule: RuleRequest) =>
     request<Rule>(`/api/rules/${id}`, { method: 'PUT', body: JSON.stringify(rule) }),
   deleteRule: (id: number) => request<void>(`/api/rules/${id}`, { method: 'DELETE' }),
+
+  listMailAccounts: () => request<MailAccount[]>('/api/mail-accounts'),
 
   listCategories: () => request<Category[]>('/api/categories'),
   createCategory: (category: CategoryRequest) =>

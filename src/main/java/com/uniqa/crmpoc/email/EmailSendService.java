@@ -1,5 +1,6 @@
 package com.uniqa.crmpoc.email;
 
+import com.uniqa.crmpoc.repository.MailAccountRepository;
 import jakarta.mail.Message;
 import jakarta.mail.Session;
 import jakarta.mail.Transport;
@@ -8,8 +9,11 @@ import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Properties;
+
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 /**
  * Sends Reply/Reply All/Forward emails via the embedded GreenMail SMTP server -
@@ -27,15 +31,19 @@ import java.util.Properties;
 public class EmailSendService {
 
     private final int smtpPort;
-    private final String fromAddress;
+    private final MailAccountRepository mailAccountRepository;
 
     public EmailSendService(@Value("${email.greenmail.smtp-port}") int smtpPort,
-                             @Value("${email.greenmail.test-account}") String fromAddress) {
+                             MailAccountRepository mailAccountRepository) {
         this.smtpPort = smtpPort;
-        this.fromAddress = fromAddress;
+        this.mailAccountRepository = mailAccountRepository;
     }
 
     public void send(OutgoingEmail outgoing) {
+        if (!mailAccountRepository.existsByAddressAndCanSendTrue(outgoing.fromAddress())) {
+            throw new ResponseStatusException(BAD_REQUEST,
+                    "'" + outgoing.fromAddress() + "' is not a configured send-capable mail account");
+        }
         try {
             Properties props = new Properties();
             props.setProperty("mail.smtp.host", "localhost");
@@ -43,7 +51,7 @@ public class EmailSendService {
             Session session = Session.getInstance(props);
 
             MimeMessage message = new MimeMessage(session);
-            message.setFrom(new InternetAddress(fromAddress));
+            message.setFrom(new InternetAddress(outgoing.fromAddress()));
             message.setRecipients(Message.RecipientType.TO, toAddresses(outgoing.to()));
             if (outgoing.cc() != null && !outgoing.cc().isEmpty()) {
                 message.setRecipients(Message.RecipientType.CC, toAddresses(outgoing.cc()));

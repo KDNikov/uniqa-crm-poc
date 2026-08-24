@@ -45,9 +45,11 @@ public class GreenMailTestServerConfig {
         smtpSetup = new ServerSetup(smtpPort, null, ServerSetup.PROTOCOL_SMTP);
         greenMail = new GreenMail(new ServerSetup[]{imap, smtpSetup});
         greenMail.start();
-        greenMail.setUser(testAccount, testAccount, testPassword);
-        log.info("GreenMail test mailbox started: IMAP {} / SMTP {} / account {}",
-                imapPort, smtpPort, testAccount);
+        for (DemoMailAccounts.Def account : DemoMailAccounts.ALL) {
+            greenMail.setUser(account.address(), account.address(), testPassword);
+        }
+        log.info("GreenMail test mailbox started: IMAP {} / SMTP {} / {} account(s), primary {}",
+                imapPort, smtpPort, DemoMailAccounts.ALL.size(), testAccount);
         seedSampleEmails();
         return greenMail;
     }
@@ -104,12 +106,28 @@ public class GreenMailTestServerConfig {
                 "tomas.dvorak@example.com",
                 "kitchen_damage.jpg");
 
-        greenMail.waitForIncomingEmail(7);
-        log.info("Seeded 7 sample emails into test mailbox");
+        // A couple of emails on other mailboxes, so multi-account intake is visible
+        // out of the box rather than only after someone emails a non-primary address.
+        send("Terrible support, considering cancelling",
+                "I am extremely frustrated and disappointed with the support I received. " +
+                "This has been an unacceptable experience overall.",
+                "complaints@uniqa-poc.local", "lena.gruber@example.com");
+
+        send("Question about adding a driver to my policy",
+                "Hi, I'd like to update my policy PL-51234 to add my partner as a second driver. " +
+                "Could you let me know what's needed?",
+                "policy-changes@uniqa-poc.local", "peter.wagner@example.com");
+
+        greenMail.waitForIncomingEmail(9);
+        log.info("Seeded 9 sample emails across {} mailbox(es)", DemoMailAccounts.ALL.size());
     }
 
     private void send(String subject, String body, String from) {
-        GreenMailUtil.sendTextEmailTest(testAccount, from, subject, body);
+        send(subject, body, testAccount, from);
+    }
+
+    private void send(String subject, String body, String to, String from) {
+        GreenMailUtil.sendTextEmailTest(to, from, subject, body);
     }
 
     private void sendWithAttachment(String subject, String body, String from, String filename) {

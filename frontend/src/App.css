@@ -4,6 +4,11 @@
   background: var(--page-bg);
 }
 
+/* Temporarily hidden - not needed for now, remove this rule to bring back */
+.hidden-temp {
+  display: none !important;
+}
+
 .sidebar {
   width: 220px;
   flex-shrink: 0;
@@ -130,11 +135,27 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-bar {
+  margin-bottom: 16px;
 }
 
 .search-input {
   flex: 1;
   max-width: 360px;
+}
+
+.date-filter-label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px !important;
+  white-space: nowrap;
+}
+
+.date-filter-label input[type='date'] {
+  padding: 6px 8px;
 }
 
 .bulk-bar {
@@ -360,25 +381,68 @@ tr.editing {
   background: var(--bg-alt);
 }
 
-.clickable-row.unread {
-  font-weight: 600;
-  color: var(--text-h);
-}
-
-.unread-dot-cell {
-  width: 10px;
-}
-
 .checkbox-cell {
   width: 16px;
 }
 
-.unread-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
+.star-cell {
+  width: 18px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.star-icon {
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.star-icon.important {
+  color: #eda100;
+}
+
+.clickable-row.important-row {
+  box-shadow: inset 3px 0 0 #eda100;
+}
+
+.important-active {
+  color: #eda100 !important;
+  border-color: #eda100 !important;
+}
+
+.spam-active {
+  color: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+
+.spam-suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #b45309;
+  background: rgba(180, 83, 9, 0.1);
+  border: 1px solid rgba(180, 83, 9, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.spam-suggestion-link {
+  background: none;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b45309;
+  text-decoration: underline;
+}
+
+.spam-suggestion-link:hover:not(:disabled) {
+  background: none;
+  color: #92400e;
 }
 
 .category-nav-panel,
@@ -472,6 +536,21 @@ tr.editing {
 .category-nav button.active {
   background: var(--accent);
   color: white;
+}
+
+.category-nav-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0;
+}
+
+.nav-spam {
+  color: #dc2626 !important;
+}
+
+.nav-spam.active {
+  background: #dc2626 !important;
+  color: white !important;
 }
 
 .email-detail {

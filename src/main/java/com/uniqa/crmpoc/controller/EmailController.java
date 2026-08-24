@@ -3,7 +3,8 @@ package com.uniqa.crmpoc.controller;
 import com.uniqa.crmpoc.domain.Email;
 import com.uniqa.crmpoc.dto.CategoryOverrideRequest;
 import com.uniqa.crmpoc.dto.EmailArchivedRequest;
-import com.uniqa.crmpoc.dto.EmailReadRequest;
+import com.uniqa.crmpoc.dto.EmailImportantRequest;
+import com.uniqa.crmpoc.dto.EmailSpamRequest;
 import com.uniqa.crmpoc.dto.SendEmailRequest;
 import com.uniqa.crmpoc.email.EmailSendService;
 import com.uniqa.crmpoc.email.EmailSource;
@@ -75,10 +76,27 @@ public class EmailController {
         return emailRepository.save(email);
     }
 
-    @PutMapping("/{id}/read")
-    public Email setRead(@PathVariable Long id, @RequestBody EmailReadRequest req) {
+    @PutMapping("/{id}/important")
+    public Email setImportant(@PathVariable Long id, @RequestBody EmailImportantRequest req) {
         Email email = emailRepository.findById(id).orElseThrow();
-        email.setRead(req.read());
+        email.setImportant(req.important());
+        return emailRepository.save(email);
+    }
+
+    /** Manual mark, or confirming the NLP "likely spam" suggestion. Spam stays visible in the inbox - never archived. */
+    @PutMapping("/{id}/spam")
+    public Email setSpam(@PathVariable Long id, @RequestBody EmailSpamRequest req) {
+        Email email = emailRepository.findById(id).orElseThrow();
+        email.setSpam(req.spam());
+        email.setSpamSuggestionDismissed(true);
+        return emailRepository.save(email);
+    }
+
+    /** Dismiss the NLP "likely spam" suggestion without marking the email as spam. */
+    @PutMapping("/{id}/spam-suggestion-dismiss")
+    public Email dismissSpamSuggestion(@PathVariable Long id) {
+        Email email = emailRepository.findById(id).orElseThrow();
+        email.setSpamSuggestionDismissed(true);
         return emailRepository.save(email);
     }
 
@@ -94,6 +112,7 @@ public class EmailController {
     @PostMapping("/{id}/send")
     public void send(@PathVariable Long id, @Valid @RequestBody SendEmailRequest req) {
         Email original = emailRepository.findById(id).orElseThrow();
-        emailSendService.send(new OutgoingEmail(req.to(), req.cc(), req.subject(), req.body(), original.getMessageId()));
+        emailSendService.send(new OutgoingEmail(
+                req.fromAddress(), req.to(), req.cc(), req.subject(), req.body(), original.getMessageId()));
     }
 }

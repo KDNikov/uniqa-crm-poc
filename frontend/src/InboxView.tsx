@@ -1,8 +1,42 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from './api';
-import type { Category, Email, SendEmailRequest } from './types';
-import { CategoryBadge, NegativeSentimentBadge } from './Badge';
+import type { Category, Email, MailAccount, SendEmailRequest } from './types';
+import { CategoryBadge, NegativeSentimentBadge, SpamBadge } from './Badge';
+
+// NLP spamScore is a suggestion, not a verdict - only surface it above this likelihood.
+const SPAM_SUGGESTION_THRESHOLD = 0.5;
+
+function isSpamSuggested(email: Email): boolean {
+  return (
+    !email.spam &&
+    !email.spamSuggestionDismissed &&
+    email.spamScore != null &&
+    email.spamScore >= SPAM_SUGGESTION_THRESHOLD
+  );
+}
+
+function SpamSuggestionChip({
+  email,
+  onConfirm,
+  onDismiss,
+}: {
+  email: Email;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <span className="spam-suggestion" onClick={(e) => e.stopPropagation()}>
+      Likely spam {Math.round((email.spamScore ?? 0) * 100)}%
+      <button type="button" className="spam-suggestion-link" onClick={onConfirm}>
+        Confirm
+      </button>
+      <button type="button" className="spam-suggestion-link" onClick={onDismiss}>
+        Dismiss
+      </button>
+    </span>
+  );
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString();
@@ -51,13 +85,20 @@ function replyAllCc(email: Email): string[] {
 const POLL_INTERVAL_MS = 5000;
 const PAGE_SIZE = 15;
 
+// Spam is a cross-cutting flag, not a real Category row - this pseudo-selection value
+// filters the already-fetched "All" list client-side rather than hitting a category endpoint.
+const SPAM_FILTER = 'SPAM';
+
 export function InboxView() {
   const [emails, setEmails] = useState<Email[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [mailAccounts, setMailAccounts] = useState<MailAccount[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +108,7 @@ export function InboxView() {
     setError(null);
     try {
       const data =
-        selectedCategory === 'ALL'
+        selectedCategory === 'ALL' || selectedCategory === SPAM_FILTER
           ? await api.listEmails()
           : await api.listEmailsByCategory(selectedCategory);
       setEmails(data);
@@ -80,6 +121,7 @@ export function InboxView() {
 
   useEffect(() => {
     api.listCategories().then(setCategories).catch(() => {});
+    api.listMailAccounts().then(setMailAccounts).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -100,11 +142,35 @@ export function InboxView() {
     }
   }
 
-  async function handleToggleRead(id: number, read: boolean) {
+  async function handleToggleImportant(id: number, important: boolean) {
     const previous = emails;
-    setEmails((cur) => cur.map((e) => (e.id === id ? { ...e, read } : e)));
+    setEmails((cur) => cur.map((e) => (e.id === id ? { ...e, important } : e)));
     try {
-      await api.setEmailRead(id, read);
+      await api.setEmailImportant(id, important);
+    } catch (e) {
+      setEmails(previous);
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function handleToggleSpam(id: number, spam: boolean) {
+    const previous = emails;
+    setEmails((cur) =>
+      cur.map((e) => (e.id === id ? { ...e, spam, spamSuggestionDismissed: true } : e)),
+    );
+    try {
+      await api.setEmailSpam(id, spam);
+    } catch (e) {
+      setEmails(previous);
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function handleDismissSpamSuggestion(id: number) {
+    const previous = emails;
+    setEmails((cur) => cur.map((e) => (e.id === id ? { ...e, spamSuggestionDismissed: true } : e)));
+    try {
+      await api.dismissSpamSuggestion(id);
     } catch (e) {
       setEmails(previous);
       setError(e instanceof Error ? e.message : String(e));
@@ -125,10 +191,6 @@ export function InboxView() {
 
   function handleSelectEmail(id: number) {
     setSelectedEmailId(id);
-    const email = emails.find((e) => e.id === id);
-    if (email && !email.read) {
-      handleToggleRead(id, true);
-    }
   }
 
   function selectCategory(name: string) {
@@ -179,15 +241,6 @@ export function InboxView() {
     );
   }
 
-  function handleBulkRead(read: boolean) {
-    const ids = [...selected];
-    runBulk(
-      ids,
-      (id) => api.setEmailRead(id, read),
-      (cur) => cur.map((e) => (ids.includes(e.id) ? { ...e, read } : e)),
-    );
-  }
-
   function handleBulkCategory(category: string) {
     const ids = [...selected];
     runBulk(
@@ -202,16 +255,38 @@ export function InboxView() {
     [emails],
   );
 
+  const categoryScoped = useMemo(
+    () => (selectedCategory === SPAM_FILTER ? sorted.filter((e) => e.spam) : sorted),
+    [sorted, selectedCategory],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return sorted;
-    return sorted.filter(
-      (e) =>
-        e.subject.toLowerCase().includes(q) ||
-        e.fromAddress.toLowerCase().includes(q) ||
-        e.body.toLowerCase().includes(q),
-    );
-  }, [sorted, search]);
+    const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+    const to = dateTo ? new Date(`${dateTo}T23:59:59.999`) : null;
+    return categoryScoped.filter((e) => {
+      if (q) {
+        const matchesText =
+          e.subject.toLowerCase().includes(q) ||
+          e.fromAddress.toLowerCase().includes(q) ||
+          e.body.toLowerCase().includes(q);
+        if (!matchesText) return false;
+      }
+      const receivedAt = new Date(e.receivedAt);
+      if (from && receivedAt < from) return false;
+      if (to && receivedAt > to) return false;
+      return true;
+    });
+  }, [categoryScoped, search, dateFrom, dateTo]);
+
+  const hasActiveFilters = search.trim() !== '' || dateFrom !== '' || dateTo !== '';
+
+  function clearFilters() {
+    setSearch('');
+    setDateFrom('');
+    setDateTo('');
+    setPage(1);
+  }
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   // Clamp rather than reset on every render: a background poll shrinking the
@@ -237,16 +312,28 @@ export function InboxView() {
           <EmailDetail
             email={selectedEmail}
             categories={categories}
+            mailAccounts={mailAccounts}
             onBack={() => setSelectedEmailId(null)}
             onOverride={handleOverride}
             onArchive={handleArchive}
-            onToggleRead={handleToggleRead}
+            onToggleImportant={handleToggleImportant}
+            onToggleSpam={handleToggleSpam}
+            onDismissSpamSuggestion={handleDismissSpamSuggestion}
             onSend={(req) => api.sendEmail(selectedEmail.id, req)}
           />
         ) : (
           <>
             <div className="toolbar">
-              <h2 className="pane-title">{selectedCategory === 'ALL' ? 'All emails' : selectedCategory}</h2>
+              <h2 className="pane-title">
+                {selectedCategory === 'ALL'
+                  ? 'All emails'
+                  : selectedCategory === SPAM_FILTER
+                    ? 'Spam'
+                    : selectedCategory}
+              </h2>
+              <span className="muted live-indicator">● Live — auto-refreshing</span>
+            </div>
+            <div className="toolbar filter-bar">
               <input
                 type="search"
                 className="search-input"
@@ -257,18 +344,40 @@ export function InboxView() {
                   setPage(1);
                 }}
               />
-              <span className="muted live-indicator">● Live — auto-refreshing</span>
+              <label className="date-filter-label">
+                Received from
+                <input
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo || undefined}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </label>
+              <label className="date-filter-label">
+                to
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </label>
+              {hasActiveFilters && (
+                <button type="button" className="secondary" onClick={clearFilters}>
+                  Clear filters
+                </button>
+              )}
             </div>
 
             {selected.size > 0 && (
               <div className="bulk-bar">
                 <span>{selected.size} selected</span>
-                <button className="secondary" onClick={() => handleBulkRead(true)}>
-                  Mark read
-                </button>
-                <button className="secondary" onClick={() => handleBulkRead(false)}>
-                  Mark unread
-                </button>
                 <select
                   defaultValue=""
                   onChange={(e) => {
@@ -313,20 +422,26 @@ export function InboxView() {
                             onChange={(e) => toggleSelectAllOnPage(pageIds, e.target.checked)}
                           />
                         </th>
-                        <th></th>
+                        <th className="star-cell"></th>
                         <th>Received</th>
                         <th>From</th>
                         <th>Subject</th>
-                        <th>NLP guess</th>
-                        <th>Final category</th>
-                        <th></th>
+                        <th>Flags</th>
+                        <th className="hidden-temp">NLP guess</th>
+                        <th className="hidden-temp">Final category</th>
+                        <th className="hidden-temp"></th>
                       </tr>
                     </thead>
                     <tbody>
                       {pageEmails.map((email) => (
                         <tr
                           key={email.id}
-                          className={email.read ? 'clickable-row' : 'clickable-row unread'}
+                          className={[
+                            'clickable-row',
+                            email.important ? 'important-row' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
                           onClick={() => handleSelectEmail(email.id)}
                         >
                           <td className="checkbox-cell" onClick={(e) => e.stopPropagation()}>
@@ -336,20 +451,44 @@ export function InboxView() {
                               onChange={() => toggleSelect(email.id)}
                             />
                           </td>
-                          <td className="unread-dot-cell">{!email.read && <span className="unread-dot" />}</td>
+                          <td
+                            className="star-cell"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleImportant(email.id, !email.important);
+                            }}
+                          >
+                            <span
+                              className={email.important ? 'star-icon important' : 'star-icon'}
+                              title={email.important ? 'Unmark as important' : 'Mark as important'}
+                            >
+                              {email.important ? '★' : '☆'}
+                            </span>
+                          </td>
                           <td className="nowrap">{formatDate(email.receivedAt)}</td>
                           <td>{email.fromAddress}</td>
                           <td className="subject-cell" title={email.body}>
                             {email.subject}
                           </td>
                           <td className="nowrap">
+                            {email.spam ? (
+                              <SpamBadge />
+                            ) : isSpamSuggested(email) ? (
+                              <SpamSuggestionChip
+                                email={email}
+                                onConfirm={() => handleToggleSpam(email.id, true)}
+                                onDismiss={() => handleDismissSpamSuggestion(email.id)}
+                              />
+                            ) : null}
+                          </td>
+                          <td className="nowrap hidden-temp">
                             <CategoryBadge name={email.nlpCategory} />{' '}
                             <span className="muted">{Math.round(email.nlpConfidence * 100)}%</span>
                           </td>
-                          <td>
+                          <td className="hidden-temp">
                             <CategoryBadge name={email.finalCategory} />
                           </td>
-                          <td className="actions-cell">
+                          <td className="actions-cell hidden-temp">
                             <button
                               className="secondary"
                               onClick={(e) => {
@@ -451,6 +590,18 @@ function CategoryNav({
             All
           </button>
         </li>
+        <li>
+          <button
+            className={selected === SPAM_FILTER ? 'active nav-spam' : 'nav-spam'}
+            onClick={() => onSelect(SPAM_FILTER)}
+            title="Emails a human confirmed or the NLP flagged as spam - never archived, always here"
+          >
+            ⚠ Spam
+          </button>
+        </li>
+      </ul>
+      <div className="category-nav-divider" />
+      <ul className="category-nav">
         {categories.map((c) => (
           <li key={c.id}>
             <button
@@ -470,18 +621,24 @@ function CategoryNav({
 function EmailDetail({
   email,
   categories,
+  mailAccounts,
   onBack,
   onOverride,
   onArchive,
-  onToggleRead,
+  onToggleImportant,
+  onToggleSpam,
+  onDismissSpamSuggestion,
   onSend,
 }: {
   email: Email;
   categories: Category[];
+  mailAccounts: MailAccount[];
   onBack: () => void;
   onOverride: (id: number, category: string) => void;
   onArchive: (id: number) => void;
-  onToggleRead: (id: number, read: boolean) => void;
+  onToggleImportant: (id: number, important: boolean) => void;
+  onToggleSpam: (id: number, spam: boolean) => void;
+  onDismissSpamSuggestion: (id: number) => void;
   onSend: (req: SendEmailRequest) => Promise<void>;
 }) {
   const [composeMode, setComposeMode] = useState<'reply' | 'replyAll' | 'forward' | null>(null);
@@ -500,8 +657,17 @@ function EmailDetail({
           <button className="secondary" onClick={() => setComposeMode('forward')}>
             Forward
           </button>
-          <button className="secondary" onClick={() => onToggleRead(email.id, !email.read)}>
-            {email.read ? 'Mark unread' : 'Mark read'}
+          <button
+            className={email.important ? 'secondary important-active' : 'secondary'}
+            onClick={() => onToggleImportant(email.id, !email.important)}
+          >
+            {email.important ? '★ Important' : '☆ Mark important'}
+          </button>
+          <button
+            className={email.spam ? 'secondary spam-active' : 'secondary'}
+            onClick={() => onToggleSpam(email.id, !email.spam)}
+          >
+            {email.spam ? 'Not spam' : 'Mark as spam'}
           </button>
           <button className="danger" onClick={() => onArchive(email.id)}>
             Archive
@@ -509,7 +675,20 @@ function EmailDetail({
         </div>
       </div>
 
-      <h2 className="email-detail-subject">{email.subject}</h2>
+      <h2 className="email-detail-subject">
+        {email.subject}{' '}
+        {email.spam ? (
+          <SpamBadge />
+        ) : (
+          isSpamSuggested(email) && (
+            <SpamSuggestionChip
+              email={email}
+              onConfirm={() => onToggleSpam(email.id, true)}
+              onDismiss={() => onDismissSpamSuggestion(email.id)}
+            />
+          )
+        )}
+      </h2>
       <dl className="email-detail-meta">
         <div>
           <dt>From</dt>
@@ -598,6 +777,7 @@ function EmailDetail({
         <ComposePanel
           mode={composeMode}
           email={email}
+          mailAccounts={mailAccounts}
           onSend={onSend}
           onCancel={() => setComposeMode(null)}
         />
@@ -613,17 +793,32 @@ function EmailDetail({
   );
 }
 
+/**
+ * Which configured send-capable account should be preselected: the one that
+ * actually received this email, if it's allowed to send; otherwise the first
+ * send-capable account, since most inboxes are receive-only aliases (see
+ * DemoMailAccounts) and can't be a legitimate "From".
+ */
+function defaultFromAddress(email: Email, sendable: MailAccount[]): string {
+  const receiving = sendable.find((a) => a.address === email.receivingAccount);
+  return receiving?.address ?? sendable[0]?.address ?? '';
+}
+
 function ComposePanel({
   mode,
   email,
+  mailAccounts,
   onSend,
   onCancel,
 }: {
   mode: 'reply' | 'replyAll' | 'forward';
   email: Email;
+  mailAccounts: MailAccount[];
   onSend: (req: SendEmailRequest) => Promise<void>;
   onCancel: () => void;
 }) {
+  const sendableAccounts = useMemo(() => mailAccounts.filter((a) => a.canSend), [mailAccounts]);
+
   const initial = useMemo(() => {
     const body = quoteBody(email);
     if (mode === 'forward') {
@@ -638,6 +833,7 @@ function ComposePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, email.id]);
 
+  const [from, setFrom] = useState(() => defaultFromAddress(email, sendableAccounts));
   const [to, setTo] = useState(initial.to);
   const [cc, setCc] = useState(initial.cc);
   const [subject, setSubject] = useState(initial.subject);
@@ -652,6 +848,7 @@ function ComposePanel({
     setError(null);
     try {
       await onSend({
+        fromAddress: from,
         to: to.split(',').map((a) => a.trim()).filter(Boolean),
         cc: cc.split(',').map((a) => a.trim()).filter(Boolean),
         subject,
@@ -683,6 +880,17 @@ function ComposePanel({
       <h3>{title}</h3>
       {error && <p className="error">{error}</p>}
       <label>
+        From
+        <select required value={from} onChange={(e) => setFrom(e.target.value)}>
+          {sendableAccounts.length === 0 && <option value="">No send-capable account configured</option>}
+          {sendableAccounts.map((a) => (
+            <option key={a.id} value={a.address}>
+              {a.displayName} ({a.address})
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
         To
         <input required placeholder="comma-separated" value={to} onChange={(e) => setTo(e.target.value)} />
       </label>
@@ -703,7 +911,7 @@ function ComposePanel({
         <textarea required rows={10} value={body} onChange={(e) => setBody(e.target.value)} />
       </label>
       <div className="row">
-        <button type="submit" disabled={sending}>
+        <button type="submit" disabled={sending || !from}>
           {sending ? 'Sending…' : 'Send'}
         </button>
         <button type="button" className="secondary" onClick={onCancel}>

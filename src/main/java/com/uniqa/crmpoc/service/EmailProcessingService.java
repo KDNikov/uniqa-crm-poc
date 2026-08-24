@@ -4,6 +4,7 @@ import com.uniqa.crmpoc.domain.Email;
 import com.uniqa.crmpoc.domain.EmailAttachment;
 import com.uniqa.crmpoc.email.RawEmail;
 import com.uniqa.crmpoc.nlp.NlpCategorizationService;
+import static com.uniqa.crmpoc.nlp.NlpCategorizationService.AUTO_SPAM_THRESHOLD;
 import com.uniqa.crmpoc.nlp.NlpResult;
 import com.uniqa.crmpoc.repository.EmailRepository;
 import com.uniqa.crmpoc.rules.EmailFact;
@@ -53,6 +54,7 @@ public class EmailProcessingService {
 
         Email email = new Email();
         email.setMessageId(raw.messageId());
+        email.setReceivingAccount(raw.mailboxAddress());
         email.setFromAddress(raw.fromAddress());
         email.setSubject(raw.subject());
         email.setBody(raw.body());
@@ -74,6 +76,12 @@ public class EmailProcessingService {
         email.setNlpCategory(nlp.category());
         email.setNlpConfidence(nlp.confidence());
         email.setNegativeSentiment(nlp.negativeSentiment());
+        email.setSpamScore(nlp.spamScore());
+        // High-confidence spam is auto-marked, no human click needed; mid-confidence stays a suggestion.
+        if (nlp.spamScore() >= AUTO_SPAM_THRESHOLD) {
+            email.setSpam(true);
+            email.setSpamSuggestionDismissed(true);
+        }
         email.setSuggestedCategory(fact.getSuggestedCategory());
         email.setMatchedRuleId(fact.getMatchedRuleId());
         email.setFinalCategory(finalCategory);
