@@ -26,8 +26,6 @@ you add).
 ## Prerequisites
 
 - Java 21, Maven
-- The Docker stack from earlier (Postgres running on localhost:5432,
-  db `crm_poc`, user/pass `crm_user`/`crm_pass`) — already set up.
 
 ## Run it
 
